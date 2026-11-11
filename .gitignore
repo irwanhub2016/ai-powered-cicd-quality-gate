@@ -1,0 +1,28 @@
+# Environment & Secrets (Crucial: Never commit secrets)
+.env
+.env*.local
+*.key
+*.pem
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Test Artifacts & Playwright Reports
+playwright-report/
+blob-report/
+playwright/.cache/
+test-results/
+
+# Production Builds
+.next/
+out/
+build/
+dist/
+
+# OS and Editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.log
