@@ -32,7 +32,7 @@ jobs:
           npm install
           cd application_code && npm install
           cd ../playwright_template && npm install
-          npx playwright install --with-deps chromium ffmpeg
+          npx playwright install chromium ffmpeg
 
       - name: Start Backend & Frontend Services in Background
         run: |
