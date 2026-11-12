@@ -238,7 +238,7 @@ The generator prompt enforces Playwright's **Selector Priority Ladder**:
 | **Schema-Aware Assertions** | Generated API tests validate response data types (`typeof body.status === 'string'`) and payload structure per Swagger definitions. |
 | **Deterministic Generation** | Temperature pinned to `0.1`, structured prompt rules, and consistent code formatting. |
 | **Intelligent Rate-Limit Handling** | Handles Gemini API `503 Unavailable` / demand spikes using exponential backoff retry delays. |
-| **Zero Mod of Template Config** | `playwright_template/playwright.config.ts` was kept **100% untouched**, adhering strictly to assessment constraints. |
+| **Parallel CI Test Execution** | Playwright CI runs with up to 2 workers, allowing API and web tests to execute in parallel while limiting runner resource usage. |
 | **Dual-Target Orchestration** | `scripts/run_all.sh` orchestrates Go backend, Next.js frontend, Gemini generator, and Playwright execution seamlessly. |
 
 ---

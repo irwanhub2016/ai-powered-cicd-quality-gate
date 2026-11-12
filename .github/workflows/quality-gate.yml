@@ -61,7 +61,7 @@ jobs:
           node scripts/generate_tests.mjs
 
           # 5. Execute Quality Gate Tests (API & Web)
-          npm test
+          npm --prefix playwright_template test -- --workers=2
 
       - name: Upload Test Report & Results
         if: always()
