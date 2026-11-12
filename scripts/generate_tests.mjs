@@ -8,13 +8,13 @@
  * - Resilient Multi-Model Fallback Chain (Verified Gemini Models)
  * - TypeScript AST Syntax Validation Guardrails
  * - Automated Self-Healing & Exponential Backoff Retries
- * - Clean Code Extraction & Zero-Hallucination Grounding
+ * - Swagger Conformance Validation for Generated API Tests
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import ts from '../playwright_template/node_modules/typescript/lib/typescript.js';
+import { validateApiTestSemantics, validateTypeScriptAST } from './test_guardrails.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,41 +64,6 @@ function extractCode(rawOutput) {
   text = text.replace(/^```(?:typescript|ts|javascript|js)?\s*/i, '');
   text = text.replace(/\s*```$/i, '');
   return text.trim();
-}
-
-// Guardrail: TypeScript AST syntax validator
-function validateTypeScriptAST(code, type = 'API') {
-  if (!code || code.length < 50) {
-    throw new Error(`Generated ${type} test code is suspiciously empty.`);
-  }
-
-  // Parse code into AST to detect syntax errors
-  const sourceFile = ts.createSourceFile(
-    `temp-${type}.spec.ts`,
-    code,
-    ts.ScriptTarget.Latest,
-    true
-  );
-
-  const diagnostics = sourceFile.parseDiagnostics || [];
-  if (diagnostics.length > 0) {
-    const errorMessages = diagnostics.slice(0, 3).map(d => {
-      const { line, character } = sourceFile.getLineAndCharacterOfPosition(d.start);
-      return `Line ${line + 1}:${character + 1} - ${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`;
-    });
-    throw new Error(`TypeScript syntax validation failed for ${type} test:\n${errorMessages.join('\n')}`);
-  }
-
-  // Structural sanity checks
-  if (!code.includes('@playwright/test')) {
-    throw new Error(`Generated ${type} test is missing '@playwright/test' import.`);
-  }
-  if (!code.includes('test(') && !code.includes('test.describe(')) {
-    throw new Error(`Generated ${type} test contains no Playwright test definitions.`);
-  }
-
-  console.log(`🛡️  Guardrail Passed: ${type} test is valid TypeScript without syntax errors.`);
-  return true;
 }
 
 // Single model call with retry
@@ -175,13 +140,14 @@ async function callGeminiWithFallback(apiKey, systemInstruction, prompt) {
 }
 
 // Generate with automated validation and retry on syntax failure
-async function generateWithGuardrails(apiKey, systemInstruction, prompt, type) {
+async function generateWithGuardrails(apiKey, systemInstruction, prompt, type, semanticValidation) {
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const rawOutput = await callGeminiWithFallback(apiKey, systemInstruction, prompt);
       const cleanCode = extractCode(rawOutput);
       validateTypeScriptAST(cleanCode, type);
+      semanticValidation?.(cleanCode);
       return cleanCode;
     } catch (err) {
       console.warn(`⚠️ Guardrail caught an issue on attempt ${attempt} for ${type}: ${err.message}`);
@@ -211,14 +177,18 @@ async function main() {
   // 1. Generate API Tests
   console.log('\n--- Step 1: Generating API Tests from Swagger Spec ---');
   const apiPromptTemplate = fs.readFileSync(path.join(__dirname, 'prompts', 'api-prompt.txt'), 'utf8');
-  const swaggerSpec = fs.readFileSync(path.join(rootDir, 'application_code', 'docs', 'swagger.yaml'), 'utf8');
+  const swaggerJson = JSON.parse(
+    fs.readFileSync(path.join(rootDir, 'application_code', 'docs', 'swagger.json'), 'utf8')
+  );
+  const swaggerSpec = JSON.stringify(swaggerJson, null, 2);
   const fullApiPrompt = `${apiPromptTemplate}\n\n=== SWAGGER / OPENAPI SPECIFICATION ===\n${swaggerSpec}`;
 
   const cleanApiCode = await generateWithGuardrails(
     apiKey,
     'You are an expert SDET generating Playwright API tests in TypeScript. Output ONLY the test code inside a single ```typescript markdown fence without preamble or explanation.',
     fullApiPrompt,
-    'API'
+    'API',
+    code => validateApiTestSemantics(code, swaggerJson)
   );
 
   const playwrightApiDest = path.join(rootDir, 'playwright_template', 'tests', 'api', 'generated-api.spec.ts');

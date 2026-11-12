@@ -33,6 +33,9 @@ jobs:
           cd ../playwright_template && npm install
           npx playwright install chromium ffmpeg
 
+      - name: Test API Generation Guardrails
+        run: node --test scripts/test_guardrails.test.mjs
+
       - name: Start Services & Execute Quality Gate (All inside Docker)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

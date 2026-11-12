@@ -174,11 +174,17 @@ The translation pipeline follows a deterministic mapping from OpenAPI elements t
 
 ### 3. How the Generation Process Works
 The generation pipeline runs as a reproducible node script (`scripts/generate_tests.mjs`):
-1. **Source Ingestion**: Ingests `swagger.yaml` and `app/page.tsx`.
+1. **Source Ingestion**: Ingests the machine-readable Swagger spec at `application_code/docs/swagger.json` and `app/page.tsx`.
 2. **Model Call**: Dispatches payload to Gemini API (`gemini-3.5-flash-lite`) configured with low temperature (`0.1`) for deterministic code generation.
 3. **Regex Extraction**: Strips markdown fences and any surrounding text.
-4. **AST Compiler Guardrail**: Passes the generated code into TypeScript’s parser (`ts.createSourceFile`). If syntax diagnostics (parse errors) exist, it rejects the output and triggers an automated retry.
-5. **Destination Sync**: Writes verified tests to `playwright_template/tests/` and mirrors them in `generated_test/`.
+4. **AST and Swagger Guardrails**: Checks TypeScript syntax and Playwright test structure, then validates every API request method/path, asserted status code, asserted response property, and asserted property type against Swagger. Invalid output is rejected and generation is retried.
+5. **Destination Sync**: Writes tests only after guardrails pass, then mirrors them in `generated_test/`.
+
+Run the guardrail regression tests locally with:
+
+```bash
+node --test scripts/test_guardrails.test.mjs
+```
 
 ### 4. How CI Gates Production
 In the CI workflow (`scripts/github_action.yaml`):
@@ -195,11 +201,11 @@ In an enterprise payment platform with 100+ endpoints:
 - **Modular Spec Output**: Output individual test files (e.g., `tests/api/payments.spec.ts`, `tests/api/auth.spec.ts`) enabling parallel CI test sharding (`playwright test --shard=1/4`).
 
 ### 6. Preventing & Detecting Hallucinated / Incorrect AI Tests
-To eliminate AI hallucinations:
-1. **Schema Diffing / Conformance Checker**: Validate that every URL tested in the generated code exists in the `paths` of `swagger.yaml`.
-2. **Negative Grounding Rule**: Explicit prompt instruction: *"Do not invent endpoints or fields not declared in the provided schema."*
-3. **Static AST Analysis**: Parse the AST to verify that `request.get/post` URLs and locator selectors match actual source code.
-4. **Dry-Run Validation in Shadow Mode**: In CI, run tests against a known mock container. If a newly generated test fails immediately against known working code, quarantine the test before committing to the main suite.
+The generator reduces incorrect API tests with multiple checks, while recognizing that static checks cannot prove a test is behaviorally correct:
+1. **Implemented Swagger Conformance Checks**: Before saving, an AST validator rejects API request paths or methods absent from the Swagger `paths`, status assertions not declared for the operation, response properties absent from the relevant response schema, and `typeof` assertions that conflict with the schema.
+2. **Negative Grounding Rule**: The API prompt instructs the model not to invent endpoints or fields outside the supplied schema.
+3. **Implemented Syntax and Structure Checks**: TypeScript parse errors, empty output, missing Playwright imports, or missing test declarations cause generation to retry instead of saving.
+4. **Remaining validation opportunity**: These checks cannot verify business logic, input coverage, or whether assertions would pass against the real service. Add execution against a known-good mock/backend and review failures before treating generated tests as trusted.
 
 ### 7. Handling Flaky or Unstable Tests
 1. **Automatic CI Retries**: `playwright.config.ts` configures `retries: process.env.CI ? 2 : 0` to absorb transient network hiccups.
@@ -227,7 +233,7 @@ The generator prompt enforces Playwright's **Selector Priority Ladder**:
 | Bonus Item | Implementation in this Submission |
 | :--- | :--- |
 | **Multi-Model Fallback Chain** | Resilient fallback architecture prioritizing verified active models (`gemini-3.5-flash-lite` -> `gemini-3.5-flash` -> `gemini-3.6-flash`) with automatic circuit breaking on 503/429/404 errors. |
-| **AST Output Guardrails** | Integrated TypeScript compiler API (`ts.createSourceFile`) inside `scripts/generate_tests.mjs` to validate syntax and brace balance before saving. |
+| **AST and Swagger Guardrails** | TypeScript AST validation checks syntax and structure, then checks API methods, paths, response statuses, fields, and asserted field types against Swagger before saving. |
 | **Automated LLM Self-Healing** | If generated code contains syntax errors or empty output, the generator automatically retries up to 3 times with exponential backoff. |
 | **Schema-Aware Assertions** | Generated API tests validate response data types (`typeof body.status === 'string'`) and payload structure per Swagger definitions. |
 | **Deterministic Generation** | Temperature pinned to `0.1`, structured prompt rules, and consistent code formatting. |
