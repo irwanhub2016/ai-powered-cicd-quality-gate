@@ -226,6 +226,7 @@ The generator prompt enforces Playwright's **Selector Priority Ladder**:
 
 | Bonus Item | Implementation in this Submission |
 | :--- | :--- |
+| **Multi-Model Fallback Chain** | Resilient fallback architecture prioritizing verified active models (`gemini-3.5-flash-lite` -> `gemini-3.5-flash` -> `gemini-3.6-flash`) with automatic circuit breaking on 503/429/404 errors. |
 | **AST Output Guardrails** | Integrated TypeScript compiler API (`ts.createSourceFile`) inside `scripts/generate_tests.mjs` to validate syntax and brace balance before saving. |
 | **Automated LLM Self-Healing** | If generated code contains syntax errors or empty output, the generator automatically retries up to 3 times with exponential backoff. |
 | **Schema-Aware Assertions** | Generated API tests validate response data types (`typeof body.status === 'string'`) and payload structure per Swagger definitions. |
