@@ -3,7 +3,7 @@
  * Configure different environments for your tests
  */
 
-type Environment = 'staging' | 'uat' | 'production';
+type Environment = 'dev' | 'staging' | 'uat' | 'production';
 
 interface EnvironmentConfig {
     baseUrl: string;
@@ -12,6 +12,11 @@ interface EnvironmentConfig {
 }
 
 const environments: Record<Environment, EnvironmentConfig> = {
+    dev: {
+        baseUrl: process.env.DEV_BASE_URL || 'http://localhost:3000',
+        apiUrl: process.env.DEV_API_URL || 'http://localhost:8080',
+        timeout: 30000,
+    },
     staging: {
         baseUrl: process.env.STAGING_BASE_URL || 'https://staging.example.com',
         apiUrl: process.env.STAGING_API_URL || 'https://api-staging.example.com',
@@ -29,8 +34,8 @@ const environments: Record<Environment, EnvironmentConfig> = {
     },
 };
 
-// Get current environment from env variable or default to staging
-const currentEnv = (process.env.TEST_ENV as Environment) || 'staging';
+// Get current environment from env variable or default to local development
+const currentEnv = (process.env.TEST_ENV as Environment) || 'dev';
 
 export const environment = {
     ...environments[currentEnv],
