@@ -1,4 +1,4 @@
-name: CI Quality Gate (AI-Generated API & E2E Tests)
+name: CI Quality Gate [Dockerized] (AI-Generated API & E2E Tests)
 
 on:
   push:
@@ -9,43 +9,44 @@ on:
 
 jobs:
   quality-gate:
-    name: Run AI Test Generation & Quality Gate
+    name: Run Dockerized Quality Gate
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.40.0-jammy
+      options: --user root
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Go Environment
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
+        run: |
+          apt-get update && apt-get install -y curl ca-certificates
+          curl -fsSL https://go.dev/dl/go1.21.8.linux-amd64.tar.gz | tar -C /usr/local -xz
+          echo "/usr/local/go/bin" >> $GITHUB_PATH
 
-      - name: Setup Node.js Environment
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Application & Playwright Dependencies
+      - name: Install Application Dependencies
         run: |
           npm install
           cd application_code && npm install
           cd ../playwright_template && npm install
-          npx playwright install chromium ffmpeg
+          # Pre-baked Playwright browsers (Chromium, Firefox, WebKit, ffmpeg) are already in container!
 
       - name: Start Backend & Frontend Services in Background
         run: |
-          # Start Go Backend
+          export PATH="/usr/local/go/bin:$PATH"
+          
+          # Start Go Backend on :8080
           cd application_code
           go run main.go &
           
-          # Start Next.js Frontend
+          # Build and start Next.js Frontend on :3000
           npm run build
           npm run start &
           
           # Wait for services to respond
-          echo "Waiting for backend (:8080) and frontend (:3000)..."
+          echo "Waiting for Go backend (:8080) and Next.js frontend (:3000)..."
           timeout 60 bash -c 'until curl -s http://localhost:8080/api/health; do sleep 1; done'
           timeout 60 bash -c 'until curl -s http://localhost:3000; do sleep 1; done'
           echo "Services are ready!"
@@ -68,7 +69,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-artifacts
+          name: playwright-docker-test-artifacts
           path: |
             playwright_template/playwright-report/
             playwright_template/test-results/
