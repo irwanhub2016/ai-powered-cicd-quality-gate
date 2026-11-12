@@ -1,4 +1,4 @@
-name: CI Quality Gate (AI-Generated API & E2E Tests)
+name: CI Quality Gate [Dockerized] (AI-Generated API & E2E Tests)
 
 on:
   push:
@@ -9,51 +9,52 @@ on:
 
 jobs:
   quality-gate:
-    name: Run AI Test Generation & Quality Gate
-    runs-on: ubuntu-22.04
+    name: Run Dockerized Quality Gate
+    runs-on: ubuntu-latest
     timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:jammy
+      options: --user root
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
+      - name: Setup Go 1.21 in Container
+        run: |
+          apt-get update && apt-get install -y curl ca-certificates
+          curl -fsSL https://go.dev/dl/go1.21.8.linux-amd64.tar.gz | tar -C /usr/local -xz
+          echo "/usr/local/go/bin" >> $GITHUB_PATH
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Dependencies & Playwright Browsers
+      - name: Install Application & Playwright Dependencies
         run: |
           npm install
           cd application_code && npm install
           cd ../playwright_template && npm install
           npx playwright install chromium ffmpeg
 
-      - name: Start Services & Execute Quality Gate
+      - name: Start Services & Execute Quality Gate (All inside Docker)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: '1'
           STAGING_API_URL: http://127.0.0.1:8080
           STAGING_BASE_URL: http://127.0.0.1:3000
         run: |
-          # 1. Start Go Backend in background (:8080)
+          export PATH="/usr/local/go/bin:$PATH"
+
+          # 1. Start Go Backend on :8080
           (cd application_code && go run main.go) &
 
-          # 2. Build and start Next.js Frontend in background (:3000)
+          # 2. Build and start Next.js Frontend on :3000
           (cd application_code && npm run build && npm run start) &
 
           # 3. Wait for services to be ready
           echo "Waiting for Go backend (:8080) and Next.js frontend (:3000)..."
           timeout 60 bash -c 'until curl -s http://127.0.0.1:8080/api/health; do sleep 1; done'
           timeout 60 bash -c 'until curl -s http://127.0.0.1:3000; do sleep 1; done'
-          echo "Both services are live and ready!"
+          echo "Both services are live inside Docker!"
 
-          # 4. Programmatic LLM Test Generation
+          # 4. Programmatic LLM Test Generation via Gemini with AST Guardrails
           node scripts/generate_tests.mjs
 
           # 5. Execute Quality Gate Tests (API & Web)
@@ -63,7 +64,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-artifacts
+          name: playwright-docker-test-artifacts
           path: |
             playwright_template/playwright-report/
             playwright_template/test-results/
