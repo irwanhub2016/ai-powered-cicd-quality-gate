@@ -179,11 +179,14 @@ The generation pipeline runs as a reproducible node script (`scripts/generate_te
 3. **Regex Extraction**: Strips markdown fences and any surrounding text.
 4. **AST and Swagger Guardrails**: Checks TypeScript syntax and Playwright test structure, then validates every API request method/path, asserted status code, asserted response property, and asserted property type against Swagger. Invalid output is rejected and generation is retried.
 5. **Destination Sync**: Writes tests only after guardrails pass, then mirrors them in `generated_test/`.
+6. **Intelligent Cache**: Reuses generated files only when a SHA-256 fingerprint of the Swagger spec, frontend component, prompts, generator, guardrails, and TypeScript lockfile matches. Cached file checksums and guardrails are verified again before skipping LLM calls.
 
-Run the guardrail regression tests locally with:
+On a cache hit, test generation does not require the Gemini API key. If any tracked input changes, an output is missing/modified, or validation fails, generation runs again. GitHub Actions persists generated outputs and the manifest with `actions/cache`; local runs use the same manifest under `.cache/generated-tests/`.
+
+Run the guardrail and cache regression tests locally with:
 
 ```bash
-node --test scripts/test_guardrails.test.mjs
+node --test scripts/test_guardrails.test.mjs scripts/generation_cache.test.mjs
 ```
 
 ### 4. How CI Gates Production
@@ -236,7 +239,8 @@ The generator prompt enforces Playwright's **Selector Priority Ladder**:
 | **AST and Swagger Guardrails** | TypeScript AST validation checks syntax and structure, then checks API methods, paths, response statuses, fields, and asserted field types against Swagger before saving. |
 | **Automated LLM Self-Healing** | If generated code contains syntax errors or empty output, the generator automatically retries up to 3 times with exponential backoff. |
 | **Schema-Aware Assertions** | Generated API tests validate response data types (`typeof body.status === 'string'`) and payload structure per Swagger definitions. |
-| **Deterministic Generation** | Temperature pinned to `0.1`, structured prompt rules, and consistent code formatting. |
+| **Deterministic Generation** | Temperature pinned to `0.1` with structured prompts; a content-addressed cache reuses validated outputs when all generation inputs are unchanged. |
+| **Intelligent Caching of Generated Tests** | SHA-256 fingerprints of generation inputs plus generated-output checksums; re-validates cached outputs and persists the cache across GitHub Actions runs. |
 | **Intelligent Rate-Limit Handling** | Handles Gemini API `503 Unavailable` / demand spikes using exponential backoff retry delays. |
 | **Parallel CI Test Execution** | Playwright CI runs with up to 2 workers, allowing API and web tests to execute in parallel while limiting runner resource usage. |
 | **Dual-Target Orchestration** | `scripts/run_all.sh` orchestrates Go backend, Next.js frontend, Gemini generator, and Playwright execution seamlessly. |

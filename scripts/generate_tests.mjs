@@ -14,6 +14,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  computeInputHash,
+  inspectGenerationCache,
+  writeGenerationCache
+} from './generation_cache.mjs';
 import { validateApiTestSemantics, validateTypeScriptAST } from './test_guardrails.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -171,58 +176,108 @@ async function main() {
   console.log(`📋 Active Fallback Chain: ${MODEL_FALLBACK_CHAIN.join(' -> ')}`);
   console.log('====================================================');
 
+  const apiPromptTemplate = fs.readFileSync(path.join(__dirname, 'prompts', 'api-prompt.txt'), 'utf8');
+  const webPromptTemplate = fs.readFileSync(path.join(__dirname, 'prompts', 'web-prompt.txt'), 'utf8');
+  const swaggerJson = JSON.parse(
+    fs.readFileSync(path.join(rootDir, 'application_code', 'docs', 'swagger.json'), 'utf8')
+  );
+  const swaggerSpec = JSON.stringify(swaggerJson, null, 2);
+  const pageComponent = fs.readFileSync(path.join(rootDir, 'application_code', 'app', 'page.tsx'), 'utf8');
+  const fullApiPrompt = `${apiPromptTemplate}\n\n=== SWAGGER / OPENAPI SPECIFICATION ===\n${swaggerSpec}`;
+  const fullWebPrompt = `${webPromptTemplate}\n\n=== FRONTEND NEXT.JS COMPONENT (page.tsx) ===\n${pageComponent}`;
+
+  const apiSystemInstruction =
+    'You are an expert SDET generating Playwright API tests in TypeScript. Output ONLY the test code inside a single ```typescript markdown fence without preamble or explanation.';
+  const webSystemInstruction =
+    'You are an expert SDET generating Playwright Web E2E tests in TypeScript. Output ONLY the test code inside a single ```typescript markdown fence without preamble or explanation. Ensure all blocks and parentheses are properly closed.';
+
+  const apiPlaywrightDest = path.join(rootDir, 'playwright_template', 'tests', 'api', 'generated-api.spec.ts');
+  const apiSubmissionDest = path.join(rootDir, 'generated_test', 'api', 'generated-api.spec.ts');
+  const webPlaywrightDest = path.join(rootDir, 'playwright_template', 'tests', 'web', 'generated-web.spec.ts');
+  const webSubmissionDest = path.join(rootDir, 'generated_test', 'web', 'generated-web.spec.ts');
+  const artifacts = {
+    apiPlaywright: apiPlaywrightDest,
+    apiSubmission: apiSubmissionDest,
+    webPlaywright: webPlaywrightDest,
+    webSubmission: webSubmissionDest
+  };
+  const inputFiles = [
+    'application_code/docs/swagger.json',
+    'application_code/app/page.tsx',
+    'playwright_template/package-lock.json',
+    'scripts/prompts/api-prompt.txt',
+    'scripts/prompts/web-prompt.txt',
+    'scripts/generate_tests.mjs',
+    'scripts/generation_cache.mjs',
+    'scripts/test_guardrails.mjs'
+  ];
+  const inputHash = computeInputHash(rootDir, inputFiles, {
+    models: MODEL_FALLBACK_CHAIN,
+    generationConfig: { temperature: 0.1, topP: 0.95, maxOutputTokens: 8192 },
+    apiSystemInstruction,
+    webSystemInstruction
+  });
+  const manifestPath = path.join(rootDir, '.cache', 'generated-tests', 'manifest.json');
+  const swaggerValidation = code => validateApiTestSemantics(code, swaggerJson);
+
+  const cache = inspectGenerationCache(manifestPath, inputHash, artifacts, contents => {
+    if (contents.apiPlaywright !== contents.apiSubmission) {
+      throw new Error('API test copies do not match.');
+    }
+    if (contents.webPlaywright !== contents.webSubmission) {
+      throw new Error('Web test copies do not match.');
+    }
+    validateTypeScriptAST(contents.apiPlaywright, 'API');
+    swaggerValidation(contents.apiPlaywright);
+    validateTypeScriptAST(contents.webPlaywright, 'Web E2E');
+  });
+
+  if (cache.hit) {
+    console.log('✅ Generated tests cache hit; inputs and outputs are unchanged and pass validation.');
+    console.log('⏭️  Skipping LLM generation.');
+    return;
+  }
+  console.log(`♻️  Generated tests cache miss: ${cache.reason}.`);
+
   const apiKey = getApiKey();
   console.log('🔑 Gemini API key loaded securely.');
 
   // 1. Generate API Tests
   console.log('\n--- Step 1: Generating API Tests from Swagger Spec ---');
-  const apiPromptTemplate = fs.readFileSync(path.join(__dirname, 'prompts', 'api-prompt.txt'), 'utf8');
-  const swaggerJson = JSON.parse(
-    fs.readFileSync(path.join(rootDir, 'application_code', 'docs', 'swagger.json'), 'utf8')
-  );
-  const swaggerSpec = JSON.stringify(swaggerJson, null, 2);
-  const fullApiPrompt = `${apiPromptTemplate}\n\n=== SWAGGER / OPENAPI SPECIFICATION ===\n${swaggerSpec}`;
-
   const cleanApiCode = await generateWithGuardrails(
     apiKey,
-    'You are an expert SDET generating Playwright API tests in TypeScript. Output ONLY the test code inside a single ```typescript markdown fence without preamble or explanation.',
+    apiSystemInstruction,
     fullApiPrompt,
     'API',
-    code => validateApiTestSemantics(code, swaggerJson)
+    swaggerValidation
   );
 
-  const playwrightApiDest = path.join(rootDir, 'playwright_template', 'tests', 'api', 'generated-api.spec.ts');
-  const submissionApiDest = path.join(rootDir, 'generated_test', 'api', 'generated-api.spec.ts');
-  ensureDir(path.dirname(playwrightApiDest));
-  ensureDir(path.dirname(submissionApiDest));
-  fs.writeFileSync(playwrightApiDest, cleanApiCode, 'utf8');
-  fs.writeFileSync(submissionApiDest, cleanApiCode, 'utf8');
-  console.log(`✅ Saved API tests to: ${playwrightApiDest}`);
-  console.log(`✅ Mirrored API tests to: ${submissionApiDest}`);
+  ensureDir(path.dirname(apiPlaywrightDest));
+  ensureDir(path.dirname(apiSubmissionDest));
+  fs.writeFileSync(apiPlaywrightDest, cleanApiCode, 'utf8');
+  fs.writeFileSync(apiSubmissionDest, cleanApiCode, 'utf8');
+  console.log(`✅ Saved API tests to: ${apiPlaywrightDest}`);
+  console.log(`✅ Mirrored API tests to: ${apiSubmissionDest}`);
 
   // 2. Generate Web E2E Tests
   console.log('\n--- Step 2: Generating Web E2E Tests from Frontend Component ---');
-  const webPromptTemplate = fs.readFileSync(path.join(__dirname, 'prompts', 'web-prompt.txt'), 'utf8');
-  const pageComponent = fs.readFileSync(path.join(rootDir, 'application_code', 'app', 'page.tsx'), 'utf8');
-  const fullWebPrompt = `${webPromptTemplate}\n\n=== FRONTEND NEXT.JS COMPONENT (page.tsx) ===\n${pageComponent}`;
-
   const cleanWebCode = await generateWithGuardrails(
     apiKey,
-    'You are an expert SDET generating Playwright Web E2E tests in TypeScript. Output ONLY the test code inside a single ```typescript markdown fence without preamble or explanation. Ensure all blocks and parentheses are properly closed.',
+    webSystemInstruction,
     fullWebPrompt,
     'Web E2E'
   );
 
-  const playwrightWebDest = path.join(rootDir, 'playwright_template', 'tests', 'web', 'generated-web.spec.ts');
-  const submissionWebDest = path.join(rootDir, 'generated_test', 'web', 'generated-web.spec.ts');
-  ensureDir(path.dirname(playwrightWebDest));
-  ensureDir(path.dirname(submissionWebDest));
-  fs.writeFileSync(playwrightWebDest, cleanWebCode, 'utf8');
-  fs.writeFileSync(submissionWebDest, cleanWebCode, 'utf8');
-  console.log(`✅ Saved Web E2E tests to: ${playwrightWebDest}`);
-  console.log(`✅ Mirrored Web E2E tests to: ${submissionWebDest}`);
+  ensureDir(path.dirname(webPlaywrightDest));
+  ensureDir(path.dirname(webSubmissionDest));
+  fs.writeFileSync(webPlaywrightDest, cleanWebCode, 'utf8');
+  fs.writeFileSync(webSubmissionDest, cleanWebCode, 'utf8');
+  console.log(`✅ Saved Web E2E tests to: ${webPlaywrightDest}`);
+  console.log(`✅ Mirrored Web E2E tests to: ${webSubmissionDest}`);
 
-  console.log('\n🎉 Test generation completed successfully with AST guardrails & model fallback verified!');
+  writeGenerationCache(manifestPath, inputHash, artifacts);
+  console.log('💾 Generated tests cache manifest updated.');
+  console.log('\n🎉 Test generation completed successfully with AST and Swagger guardrails!');
 }
 
 main().catch(err => {

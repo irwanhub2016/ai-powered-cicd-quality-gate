@@ -34,11 +34,26 @@ jobs:
           npx playwright install chromium ffmpeg
 
       - name: Test API Generation Guardrails
-        run: node --test scripts/test_guardrails.test.mjs
+        run: node --test scripts/test_guardrails.test.mjs scripts/generation_cache.test.mjs
+
+      - name: Restore Generated Test Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/generated-tests/
+            generated_test/api/generated-api.spec.ts
+            generated_test/web/generated-web.spec.ts
+            playwright_template/tests/api/generated-api.spec.ts
+            playwright_template/tests/web/generated-web.spec.ts
+          key: generated-tests-${{ runner.os }}-${{ hashFiles('application_code/docs/swagger.json', 'application_code/app/page.tsx', 'playwright_template/package-lock.json', 'scripts/prompts/api-prompt.txt', 'scripts/prompts/web-prompt.txt', 'scripts/generate_tests.mjs', 'scripts/generation_cache.mjs', 'scripts/test_guardrails.mjs') }}
+
+      - name: Generate API and E2E Tests
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/generate_tests.mjs
 
       - name: Start Services & Execute Quality Gate (All inside Docker)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CI: '1'
           STAGING_API_URL: http://127.0.0.1:8080
           STAGING_BASE_URL: http://127.0.0.1:3000
@@ -57,10 +72,7 @@ jobs:
           timeout 60 bash -c 'until curl -s http://127.0.0.1:3000; do sleep 1; done'
           echo "Both services are live inside Docker!"
 
-          # 4. Programmatic LLM Test Generation via Gemini with AST Guardrails
-          node scripts/generate_tests.mjs
-
-          # 5. Execute Quality Gate Tests (API & Web)
+          # 4. Execute Quality Gate Tests (API & Web)
           npm --prefix playwright_template test -- --workers=2
 
       - name: Upload Test Report & Results
