@@ -139,12 +139,6 @@
                         "schema": {
                             "$ref": "#/definitions/main.EmailResponse"
                         }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
                     }
                 }
             }

@@ -78,8 +78,8 @@ node scripts/generate_tests.mjs
 echo ""
 echo "🎭 Executing Playwright Test Suite (Quality Gate)..."
 export CI=1
-export STAGING_API_URL=http://localhost:8080
-export STAGING_BASE_URL=http://localhost:3000
+export STAGING_API_URL=http://127.0.0.1:8080
+export STAGING_BASE_URL=http://127.0.0.1:3000
 
 npm run test
 

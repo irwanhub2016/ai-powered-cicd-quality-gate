@@ -1,7 +1,7 @@
 # AI-Driven API Automation & CI Quality Gate Challenge
 
 > **Senior SDET Technical Submission — PayMongo**  
-> Architected for deterministic LLM test generation, schema validation, resilient guardrails, and automated CI gating.
+> An LLM-based test generation pipeline with schema validation, output guardrails, and automated CI gating.
 
 ---
 
@@ -20,18 +20,17 @@
    - [7. Handling Flaky or Unstable Tests](#7-handling-flaky-or-unstable-tests)
    - [8. E2E Selector Generation & Stability](#8-e2e-selector-generation--stability)
    - [9. Preventing Flaky Frontend Tests](#9-preventing-flaky-frontend-tests)
-6. [Senior-Level Signals & Bonus Implementations](#-senior-level-signals--bonus-implementations)
 
 ---
 
 ## 🏗 Overview & Architecture
 
-This solution integrates **Generative AI directly into a CI/CD Quality Gate pipeline**. Rather than treating LLMs as offline developer chatbots, the pipeline uses **Gemini 3.5 Flash-Lite** programmatically with automated AST compiler guardrails, converting OpenAPI 2.0 specifications and React frontend components into verified Playwright test suites.
+This solution integrates **Generative AI directly into a CI/CD Quality Gate pipeline**. Rather than treating LLMs as offline developer chatbots, the pipeline uses Gemini programmatically with AST and Swagger guardrails to generate Playwright API and E2E tests from an OpenAPI 2.0 specification and React frontend component. These checks reduce risk but do not prove generated tests are behaviorally correct.
 
 ```
                     ┌────────────────────────┐
                     │ application_code/      │
-                    │ ├── docs/swagger.yaml  │
+                    │ ├── docs/swagger.json │
                     │ └── app/page.tsx       │
                     └───────────┬────────────┘
                                 │ Ingested by
@@ -44,8 +43,8 @@ This solution integrates **Generative AI directly into a CI/CD Quality Gate pipe
                                 │ Calls Gemini (temp=0.1)
                                 ▼
                     ┌────────────────────────┐
-                    │ AST Syntax Guardrail   │
-                    │ (ts.createSourceFile)  │ ──► [Auto-Retry on Error]
+                    │ AST + Swagger          │
+                    │ Guardrails             │ ──► [Auto-Retry on Error]
                     └───────────┬────────────┘
                                 │ Verified Code
                                 ▼
@@ -61,8 +60,8 @@ This solution integrates **Generative AI directly into a CI/CD Quality Gate pipe
          │ Playwright Test Runner (CI / Local)             │
          │  ├── Target: Go Backend (:8080)                 │
          │  └── Target: Next.js Frontend (:3000)           │
-         │  └── Quality Gate: Pass ──► Deploy / Merge      │
-         │  └── Quality Gate: Fail ──► Block PR + Artifacts│
+         │  └── Quality Gate: Pass ──► Eligible to Merge   │
+         │  └── Quality Gate: Fail ──► Fail PR Check       │
          └──────────────────────────────────────────────────┘
 ```
 
@@ -78,9 +77,12 @@ Aligned with the assessment layout guidelines:
 ├── package.json                   # Root orchestrator scripts
 ├── .env                           # Local secrets (GEMINI_APIKEY) - not committed
 ├── scripts/
-│   ├── generate_tests.mjs         # Programmatic test generator with TS AST guardrail
-│   ├── run_all.sh                 # Full local pipeline orchestration (start -> gen -> test)
-│   ├── github_action.yaml         # CI pipeline specification
+│   ├── generate_tests.mjs         # Programmatic LLM test generator
+│   ├── run_all.sh                 # Local pipeline orchestration (start -> gen -> test)
+│   ├── generation_cache.mjs       # Generated-test cache and fingerprinting
+│   ├── generation_cache.test.mjs  # Cache regression tests
+│   ├── test_guardrails.mjs        # TypeScript and Swagger conformance checks
+│   ├── test_guardrails.test.mjs   # Guardrail regression tests
 │   └── prompts/
 │       ├── api-prompt.txt         # Few-shot Swagger-to-API test generation prompt
 │       └── web-prompt.txt         # Grounded React-to-Playwright E2E prompt
@@ -93,7 +95,7 @@ Aligned with the assessment layout guidelines:
 │   └── workflows/
 │       └── quality-gate.yml       # Active GitHub Actions pipeline
 ├── application_code/              # System under test (Go backend + Next.js frontend)
-└── playwright_template/           # Playwright framework (playwright.config.ts untouched)
+└── playwright_template/           # Provided Playwright framework (config kept unchanged)
     └── tests/
         ├── api/generated-api.spec.ts
         └── web/generated-web.spec.ts
@@ -104,9 +106,17 @@ Aligned with the assessment layout guidelines:
 ## 🚀 Quick Start & Local Execution
 
 ### 1. Prerequisites
-- **Node.js**: v18+ (v20+ recommended)
+- **Node.js**: v20.9+
 - **Go**: v1.21+
 - Playwright browsers: Chromium
+
+Install the JavaScript dependencies and Chromium browser once from the repository root:
+
+```bash
+npm --prefix application_code install
+npm --prefix playwright_template install
+npm --prefix playwright_template exec -- playwright install chromium
+```
 
 ### 2. Automated One-Command Orchestration
 Run the end-to-end flow (starts background services, waits for health checks, generates tests via Gemini, and executes tests):
@@ -119,18 +129,18 @@ bash scripts/run_all.sh
 
 ```bash
 # Terminal 1: Start Go Backend
-cd application_code
+cd /path/to/repository/application_code
 go run main.go
 
 # Terminal 2: Start Next.js Frontend
-cd application_code
-npm install
+cd /path/to/repository/application_code
 npm run dev
 
 # Terminal 3: Generate Tests via LLM
+cd /path/to/repository
 npm run generate-tests
 
-# Terminal 3: Run Test Suite
+# Still in the repository root: Run Test Suite
 npm run test:api   # Run API tests against Go backend
 npm run test:web   # Run E2E tests against Next.js checkout UI
 npm test           # Run complete suite
@@ -157,9 +167,9 @@ The assessment specifies strict secret hygiene:
 ### 1. LLM Prompt Design
 Our prompt design leverages **strict system grounding**, **role prompting**, and **structural formatting constraints**:
 - **Role & Identity**: The model is prompted as a *Principal SDET* specializing in `@playwright/test` TypeScript.
-- **Grounding (Zero Hallucination)**: The full source specification (`swagger.yaml` for API, `page.tsx` for Web) is injected into the prompt. The model is constrained to test *only* the endpoints, fields, and behaviors present in the code.
+- **Grounding to Source**: The Swagger specification for API tests and `page.tsx` for web tests are included in the prompts, with instructions to use only documented endpoints, fields, and behaviors. This reduces hallucination risk but cannot eliminate it.
 - **Explicit Edge Cases & Quirks**:
-  - *Backend Outage Simulation*: Informs the prompt that `/api/validate-email` returns HTTP 500 intentionally to simulate third-party failure, directing the LLM to assert `500` status and soft-fail handling.
+  - *Email Validation*: The API returns whether the supplied email matches the expected format; the E2E test separately mocks a 500 response to verify the frontend soft-fail behavior.
   - *Luhn Algorithm*: Directs the LLM to use valid credit card numbers (`4242 4242 4242 4242`) for positive flows and invalid numbers for negative flows.
 - **Pure Code Output**: Prompt enforces fenced code blocks (` ```typescript `) with no conversational filler, allowing clean automated extraction.
 
@@ -167,15 +177,16 @@ Our prompt design leverages **strict system grounding**, **role prompting**, and
 The translation pipeline follows a deterministic mapping from OpenAPI elements to Playwright `APIRequestContext` calls:
 - **Paths & Methods**: `paths['/api/checkout'].post` maps to `await request.post('/api/checkout', { data: { ... } })`.
 - **Parameter Schemas**: Definitions like `#/definitions/main.PaymentRequest` map to TypeScript payload fixtures (`cardNumber`, `expiry`, `cvv`, `amount`).
+- **Checkout UI fields**: The E2E flow also fills the required shipping name and address fields. The current mock Go `PaymentRequest` does not model or persist shipping details; the frontend's extra JSON fields are ignored by the handler.
 - **Response Validation**:
-  - `status()` matches declared HTTP status codes (200, 400, 500).
+  - `status()` matches declared HTTP status codes (200, 400).
   - Schema-aware assertions verify payload contracts (`expect(typeof body.status).toBe('string')`).
   - Business assertions verify expected messages (`expect(body.message).toBe('Payment processed successfully!')`).
 
 ### 3. How the Generation Process Works
 The generation pipeline runs as a reproducible node script (`scripts/generate_tests.mjs`):
 1. **Source Ingestion**: Ingests the machine-readable Swagger spec at `application_code/docs/swagger.json` and `app/page.tsx`.
-2. **Model Call**: Dispatches payload to Gemini API (`gemini-3.5-flash-lite`) configured with low temperature (`0.1`) for deterministic code generation.
+2. **Model Call**: Dispatches the prompt to the configured Gemini model fallback chain with low temperature (`0.1`) to reduce output variation; generated output is not guaranteed to be identical across uncached runs.
 3. **Regex Extraction**: Strips markdown fences and any surrounding text.
 4. **AST and Swagger Guardrails**: Checks TypeScript syntax and Playwright test structure, then validates every API request method/path, asserted status code, asserted response property, and asserted property type against Swagger. Invalid output is rejected and generation is retried.
 5. **Destination Sync**: Writes tests only after guardrails pass, then mirrors them in `generated_test/`.
@@ -190,18 +201,20 @@ node --test scripts/test_guardrails.test.mjs scripts/generation_cache.test.mjs
 ```
 
 ### 4. How CI Gates Production
-In the CI workflow (`scripts/github_action.yaml`):
-- **PR Check Requirement**: The pipeline executes on every Pull Request to `main`.
-- **Gate Enforcement**: GitHub branch protection rules require the `quality-gate` workflow status to be `success` before the **Merge** button is enabled.
-- **Pipeline Failure**: If generated API tests or E2E tests fail (exit code $\neq$ 0), CI fails immediately, preventing broken code from merging or deploying to production.
-- **Artifact Diagnostics**: Failed runs automatically publish Playwright traces, error screenshots, and HTML reports for post-mortem debugging.
+The active workflow is [`.github/workflows/quality-gate.yml`](./.github/workflows/quality-gate.yml):
+- **Workflow Triggers**: Runs on pushes and pull requests targeting `main` or `master`, and can be started manually.
+- **Generation and Validation**: Restores the generated-test cache, runs its generation/validation step, and executes the API and web Playwright suites with up to two workers.
+- **Failure Behavior**: A failing guardrail, generation step, or Playwright test makes the workflow fail. To block merges, configure this workflow as a required status check in the repository's GitHub branch protection or ruleset; that repository setting is not defined by the workflow file itself.
+- **Artifact Diagnostics**: Playwright reports and test results are uploaded even when the job fails.
 
 ### 5. Scaling to Hundreds of Endpoints
-In an enterprise payment platform with 100+ endpoints:
-- **Modular Tag Chunking**: Instead of one monolithic prompt, partition OpenAPI specs by `tags` (e.g. `auth`, `payments`, `refunds`, `webhooks`).
-- **Parallel LLM Worker Pool**: Dispatch parallel API generation requests per tag group (`Promise.allSettled`).
-- **Token Budgeting**: Inject only relevant schema definitions for each endpoint slice rather than the entire 10,000-line OpenAPI document.
-- **Modular Spec Output**: Output individual test files (e.g., `tests/api/payments.spec.ts`, `tests/api/auth.spec.ts`) enabling parallel CI test sharding (`playwright test --shard=1/4`).
+**Current implementation:** the generator reads the full Swagger document and writes one generated API test file. The current sample has only a few endpoints, so endpoint chunking and parallel LLM generation are not implemented.
+
+**Scaling approach for a larger API:**
+- **Tag-Based Chunking**: Partition OpenAPI operations and their referenced schemas by tags (e.g., `auth`, `payments`, `refunds`, `webhooks`) to keep prompts within model context limits.
+- **Bounded Parallel Generation**: Generate per-tag test files with a concurrency limit and explicit handling of partial failures rather than launching an unbounded request per endpoint.
+- **Modular Output and Execution**: Write separate test files (e.g., `tests/api/payments.spec.ts`, `tests/api/auth.spec.ts`) and use Playwright sharding when the suite becomes large.
+- **Schema Validation per Slice**: Validate generated endpoints and assertions against each operation's corresponding OpenAPI slice before saving.
 
 ### 6. Preventing & Detecting Hallucinated / Incorrect AI Tests
 The generator reduces incorrect API tests with multiple checks, while recognizing that static checks cannot prove a test is behaviorally correct:
@@ -211,14 +224,13 @@ The generator reduces incorrect API tests with multiple checks, while recognizin
 4. **Remaining validation opportunity**: These checks cannot verify business logic, input coverage, or whether assertions would pass against the real service. Add execution against a known-good mock/backend and review failures before treating generated tests as trusted.
 
 ### 7. Handling Flaky or Unstable Tests
-1. **Automatic CI Retries**: `playwright.config.ts` configures `retries: process.env.CI ? 2 : 0` to absorb transient network hiccups.
-2. **Decoupled API Mocking for Third-Party Gateways**: In E2E tests, intercept volatile external services (`page.route('**/api/validate-email', ...)`) while running real assertions against our backend.
-3. **Flaky Test Quarantine**: Isolate tests that fail on first run but pass on retry into a quarantine project, preventing PR blocking while opening an automated issue.
-4. **Deterministic Seed Data**: Use idempotent test fixtures and dedicated test card numbers rather than randomized variables that may collide.
+**Implemented:** the provided Playwright config retries tests twice in CI, while generated E2E tests use route interception for deterministic API responses and fixed test data.
+
+**Recommended for a larger suite, not currently implemented:** track first-run failures separately from final failures, quarantine repeatedly flaky tests with an owner and expiry, and report flaky rates. Retries should provide diagnostics, not silently convert unstable tests into a passing quality gate.
 
 ### 8. E2E Selector Generation & Stability
 The generator prompt enforces Playwright's **Selector Priority Ladder**:
-1. **Semantic Form Locators**: `input[name="email"]`, `input[name="cardNumber"]`, `button[type="submit"]`.
+1. **Stable Form-Field Locators**: Name-based selectors such as `input[name="shippingName"]`, `textarea[name="shippingAddress"]`, `input[name="email"]`, and `input[name="cardNumber"]`, plus `button[type="submit"]`.
 2. **User-Facing Accessibility**: `button:has-text("Check Backend Status")`.
 3. **Prohibited Selectors**: Strict ban on fragile XPath (`//div[2]/div/form/button`), auto-generated CSS classes (`.css-1a2b3c`), or deep layout hierarchies.
 4. **Async Event Handling**: Trigger explicit blur events (`await input.blur()`) to allow client-side validation listeners to evaluate cleanly.
@@ -226,28 +238,27 @@ The generator prompt enforces Playwright's **Selector Priority Ladder**:
 ### 9. Preventing Flaky Frontend Tests
 1. **Web-First Auto-Waiting Assertions**: Use `await expect(locator).toBeVisible()` rather than checking immediate DOM properties. Playwright automatically polls the DOM until timeout.
 2. **No Arbitrary Sleep Timers**: Prohibit hardcoded `page.waitForTimeout(3000)`. Instead, await observable UI states (e.g., waiting for validation checkmarks or success messages).
-3. **Handling Soft-Fail Gracefully**: The frontend catches backend 500 errors on email validation and soft-fails. The test suite explicitly tests this resilient path, ensuring the test doesn't fail just because email validation is simulated down.
+3. **Handling Soft-Fail Gracefully**: The frontend handles email-validation 500 responses by soft-failing, and the E2E test mocks that outage to verify the behavior without forcing the Go API to fail.
 4. **Clean Route Interceptions**: `page.route` intercepts guarantee deterministic responses and isolate frontend tests from network lag.
 
----
+## 🌟 Bonus Implementations
 
-## 🌟 Senior-Level Signals & Bonus Implementations
-
-| Bonus Item | Implementation in this Submission |
-| :--- | :--- |
-| **Multi-Model Fallback Chain** | Resilient fallback architecture prioritizing verified active models (`gemini-3.5-flash-lite` -> `gemini-3.5-flash` -> `gemini-3.6-flash`) with automatic circuit breaking on 503/429/404 errors. |
-| **AST and Swagger Guardrails** | TypeScript AST validation checks syntax and structure, then checks API methods, paths, response statuses, fields, and asserted field types against Swagger before saving. |
-| **Automated LLM Self-Healing** | If generated code contains syntax errors or empty output, the generator automatically retries up to 3 times with exponential backoff. |
-| **Schema-Aware Assertions** | Generated API tests validate response data types (`typeof body.status === 'string'`) and payload structure per Swagger definitions. |
-| **Deterministic Generation** | Temperature pinned to `0.1` with structured prompts; a content-addressed cache reuses validated outputs when all generation inputs are unchanged. |
-| **Intelligent Caching of Generated Tests** | SHA-256 fingerprints of generation inputs plus generated-output checksums; re-validates cached outputs and persists the cache across GitHub Actions runs. |
-| **Intelligent Rate-Limit Handling** | Handles Gemini API `503 Unavailable` / demand spikes using exponential backoff retry delays. |
-| **Parallel CI Test Execution** | Playwright CI runs with up to 2 workers, allowing API and web tests to execute in parallel while limiting runner resource usage. |
-| **Dual-Target Orchestration** | `scripts/run_all.sh` orchestrates Go backend, Next.js frontend, Gemini generator, and Playwright execution seamlessly. |
+- **Multi-Model Fallback Chain:** Tries configured Gemini models in order when a request fails. This is a fallback sequence, not a circuit breaker.
+- **AST and Swagger Guardrails:** TypeScript AST validation checks syntax and structure, then checks API methods, paths, response statuses, fields, and asserted field types against Swagger before saving.
+- **Automated LLM Self-Healing:** If generation or output validation fails, the generator retries generation up to three times.
+- **Schema-Aware Assertions:** Generated API tests validate response data types (`typeof body.status === 'string'`) and payload structure per Swagger definitions.
+- **Deterministic Generation:** Temperature pinned to `0.1` with structured prompts; a content-addressed cache reuses validated outputs when all generation inputs are unchanged.
+- **Intelligent Caching of Generated Tests:** SHA-256 fingerprints of generation inputs plus generated-output checksums; re-validates cached outputs and persists the cache across GitHub Actions runs.
+- **Rate-Limit Resilience:** Generic request retries and model fallback provide limited resilience; rate-limit-specific handling (including `Retry-After` and status-aware backoff) is not implemented.
+- **Parallel CI Test Execution:** Playwright CI runs with up to 2 workers, allowing API and web tests to execute in parallel while limiting runner resource usage.
+- **Dual-Target Orchestration:** `scripts/run_all.sh` orchestrates Go backend, Next.js frontend, Gemini generator, and Playwright execution seamlessly.
 
 ---
 
-## 🧪 Test Execution Proof
+## 🧪 Sample Test Execution (Local)
+
+The following is a recorded local run using one worker. CI currently runs with up to two workers; this log is not a CI execution record.
+The 8 skipped tests are the provided example/template tests in `playwright_template/tests/api/example-api.spec.ts` and `playwright_template/tests/web/example-web.spec.ts`; their suites are marked with `test.describe.skip` because they target placeholder endpoints and generic flows. The 11 passing tests are the generated API and checkout-flow tests.
 
 ```text
 Running 19 tests using 1 worker
@@ -260,7 +271,7 @@ Running 19 tests using 1 worker
   ✓ [api-tests] › API Tests: Payment API › POST /api/validate-card - happy path with valid Luhn card (7ms)
   ✓ [api-tests] › API Tests: Payment API › POST /api/validate-card - negative path with invalid Luhn card (6ms)
   ✓ [api-tests] › API Tests: Payment API › POST /api/validate-card - bad request path with malformed payload (5ms)
-  ✓ [api-tests] › API Tests: Payment API › POST /api/validate-email - should simulate third-party outage returning 500 (4ms)
+  ✓ [api-tests] › API Tests: Payment API › POST /api/validate-email - should validate a valid email address (4ms)
   ✓ [api-tests] › API Tests: Payment API › POST /api/checkout - happy path with valid payment details (4ms)
   ✓ [api-tests] › API Tests: Payment API › POST /api/checkout - bad request path with malformed amount payload (4ms)
 

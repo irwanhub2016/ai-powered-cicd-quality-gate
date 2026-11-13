@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "generate-tests": "node scripts/generate_tests.mjs",
-    "test": "STAGING_API_URL=http://localhost:8080 STAGING_BASE_URL=http://localhost:3000 npm --prefix playwright_template test",
-    "test:api": "STAGING_API_URL=http://localhost:8080 STAGING_BASE_URL=http://localhost:3000 npm --prefix playwright_template run test:api",
-    "test:web": "STAGING_API_URL=http://localhost:8080 STAGING_BASE_URL=http://localhost:3000 npm --prefix playwright_template run test:web",
+    "test": "STAGING_API_URL=http://127.0.0.1:8080 STAGING_BASE_URL=http://127.0.0.1:3000 npm --prefix playwright_template test",
+    "test:api": "STAGING_API_URL=http://127.0.0.1:8080 STAGING_BASE_URL=http://127.0.0.1:3000 npm --prefix playwright_template run test:api",
+    "test:web": "STAGING_API_URL=http://127.0.0.1:8080 STAGING_BASE_URL=http://127.0.0.1:3000 npm --prefix playwright_template run test:web",
     "test:all": "bash scripts/run_all.sh"
   },
   "keywords": [

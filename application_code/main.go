@@ -195,10 +195,13 @@ func validateEmailHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Email validation requested for: %s (actually valid: %v)\n", req.Email, isValid)
 
-	// Frontend should soft-fail and allow user to proceed
+	resp := EmailResponse{
+		Valid:   isValid,
+		Message: "Email address validated",
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusInternalServerError)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: "Email validation service temporarily unavailable"})
+	json.NewEncoder(w).Encode(resp)
 }
 
 // validateCardHandler godoc

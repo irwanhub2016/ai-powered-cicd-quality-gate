@@ -3,6 +3,8 @@ import { useState } from 'react';
 
 export default function CheckoutPage() {
   const [formData, setFormData] = useState({
+    shippingName: '',
+    shippingAddress: '',
     email: '',
     cardNumber: '',
     expiry: '',
@@ -39,7 +41,7 @@ export default function CheckoutPage() {
     return digitsOnly;
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
     // Special handling for card number formatting
@@ -155,7 +157,9 @@ export default function CheckoutPage() {
           cardNumber: formData.cardNumber,
           expiry: formData.expiry,
           cvv: formData.cvv,
-          amount: parseFloat(formData.amount)
+          amount: parseFloat(formData.amount),
+          shippingName: formData.shippingName,
+          shippingAddress: formData.shippingAddress
         }),
       });
 
@@ -218,6 +222,47 @@ export default function CheckoutPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="group">
+            <label htmlFor="shippingName" className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Shipping Name
+            </label>
+            <input
+              id="shippingName"
+              type="text"
+              name="shippingName"
+              value={formData.shippingName}
+              onChange={handleInputChange}
+              autoComplete="name"
+              placeholder="Alex Morgan"
+              className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all duration-300 bg-white hover:border-gray-300 placeholder-gray-400"
+              required
+            />
+          </div>
+
+          <div className="group">
+            <label htmlFor="shippingAddress" className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Shipping Address
+            </label>
+            <textarea
+              id="shippingAddress"
+              name="shippingAddress"
+              value={formData.shippingAddress}
+              onChange={handleInputChange}
+              autoComplete="street-address"
+              placeholder="123 Main Street, Manila"
+              rows={3}
+              className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all duration-300 bg-white hover:border-gray-300 placeholder-gray-400"
+              required
+            />
+          </div>
+
           <div className="group">
             <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
               <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

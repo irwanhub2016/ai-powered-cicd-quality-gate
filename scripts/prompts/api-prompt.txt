@@ -15,8 +15,7 @@ REQUIREMENTS:
      - Negative path: Send an invalid card number (e.g., '1234567890123456'). Expect status 200, valid: false, message containing 'Luhn check failed'.
      - Bad request path: Send malformed payload (e.g., cardNumber as an integer/array or malformed data that fails JSON decoding). Expect status 400.
    - POST /api/validate-email:
-     - The backend intentionally simulates a third-party dependency outage by returning HTTP 500 with 'Email validation service temporarily unavailable'.
-     - Assert that POST /api/validate-email returns status 500 and an error message property.
+     - Send a valid email address (e.g., 'user@example.com'). Expect status 200, valid: true, and a string message.
    - POST /api/checkout:
      - Happy path: Send valid payment details:
        { cardNumber: '4242 4242 4242 4242', expiry: '12/26', cvv: '123', amount: 50.00 }

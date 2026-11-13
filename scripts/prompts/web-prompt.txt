@@ -9,6 +9,8 @@ REQUIREMENTS:
 4. Tests to cover:
    - Happy Path - Full Checkout Completion:
      - Locate elements using stable, accessible locators:
+       - Shipping name: `input[name="shippingName"]`
+       - Shipping address: `textarea[name="shippingAddress"]`
        - Email: `input[name="email"]`
        - Card number: `input[name="cardNumber"]`
        - Expiry: `input[name="expiry"]`
@@ -20,6 +22,8 @@ REQUIREMENTS:
        - `**/api/validate-card` -> 200 { valid: true }
        - `**/api/checkout` -> 200 { message: 'Payment processed successfully!' }
      - Fill in valid test data:
+       - Shipping name: 'Alex Morgan'
+       - Shipping address: '123 Main Street, Manila'
        - Email: 'shopper@example.com' (trigger blur by clicking elsewhere or `await emailInput.blur()`)
        - Card Number: '4242 4242 4242 4242' (trigger blur)
        - Expiry: '12/26'
@@ -32,6 +36,8 @@ REQUIREMENTS:
      - Fill an invalid card number: '1234 5678 9012 3456' and trigger blur.
      - Verify validation error indicator `text=Invalid card number` is shown.
      - IMPORTANT: Because HTML5 form validation requires all inputs to be filled before form submission will trigger, fill dummy values in remaining fields:
+       - Shipping name: 'Alex Morgan'
+       - Shipping address: '123 Main Street, Manila'
        - Email: 'shopper@example.com'
        - Expiry: '12/26'
        - CVV: '123'

@@ -57,18 +57,19 @@ test.describe('API Tests: Payment API', () => {
     expect(typeof body.error).toBe('string');
   });
 
-  test('POST /api/validate-email - should simulate third-party outage returning 500', async ({ request }) => {
+  test('POST /api/validate-email - should validate a valid email address', async ({ request }) => {
     const response = await request.post('/api/validate-email', {
       data: {
         email: 'user@example.com'
       }
     });
-    expect(response.status()).toBe(500);
+    expect(response.status()).toBe(200);
 
     const body = await response.json();
-    expect(body).toHaveProperty('error');
-    expect(typeof body.error).toBe('string');
-    expect(body.error).toContain('Email validation service temporarily unavailable');
+    expect(body).toHaveProperty('valid', true);
+    expect(body).toHaveProperty('message');
+    expect(typeof body.valid).toBe('boolean');
+    expect(typeof body.message).toBe('string');
   });
 
   test('POST /api/checkout - happy path with valid payment details', async ({ request }) => {

@@ -32,6 +32,9 @@ test.describe('Checkout Flow E2E Tests', () => {
     });
 
     // Fill in valid test data and trigger blur events
+    await page.locator('input[name="shippingName"]').fill('Alex Morgan');
+    await page.locator('textarea[name="shippingAddress"]').fill('123 Main Street, Manila');
+
     const emailInput = page.locator('input[name="email"]');
     await emailInput.fill('shopper@example.com');
     await emailInput.blur();
@@ -70,6 +73,8 @@ test.describe('Checkout Flow E2E Tests', () => {
     await expect(page.locator('text=Invalid card number')).toBeVisible();
 
     // Fill remaining fields to satisfy HTML5 form validation
+    await page.locator('input[name="shippingName"]').fill('Alex Morgan');
+    await page.locator('textarea[name="shippingAddress"]').fill('123 Main Street, Manila');
     await page.locator('input[name="email"]').fill('shopper@example.com');
     await page.locator('input[name="expiry"]').fill('12/26');
     await page.locator('input[name="cvv"]').fill('123');
