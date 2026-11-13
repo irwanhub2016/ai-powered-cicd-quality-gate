@@ -278,3 +278,15 @@ Running 19 tests using 1 worker
   8 skipped (template boilerplate)
   11 passed (3.8s)
 ```
+
+---
+
+## ✅ CI Quality Gate Evidence
+
+These pull requests demonstrate the quality gate with both passing and intentionally failing changes. Open each PR's **Checks** tab for the latest GitHub Actions result:
+
+- **Positive case:** [Sample PR for a passing quality gate](https://github.com/irwanhub2016/sdet-automation-ai/pull/3) — documentation-only change. The workflow was still running when this README was updated; confirm its final result in the PR checks before describing it as a successful run.
+- **Intentional API failure:** [Demo failing API validation quality gate](https://github.com/irwanhub2016/sdet-automation-ai/pull/1) — `/api/validate-email` returns HTTP 500 while its API test expects HTTP 200.
+- **Intentional UI failure:** [Demo failing checkout UI quality gate](https://github.com/irwanhub2016/sdet-automation-ai/pull/2) — the checkout success response is rendered as a payment failure, causing the happy-path E2E assertion to fail.
+
+The two failure PRs are demonstrations only and must not be merged.
