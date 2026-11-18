@@ -1,8 +1,5 @@
 # AI-Driven API Automation & CI Quality Gate Challenge
 
-> **Senior SDET Technical Submission — PayMongo**  
-> An LLM-based test generation pipeline with schema validation, output guardrails, and automated CI gating.
-
 ---
 
 ## 📑 Table of Contents
