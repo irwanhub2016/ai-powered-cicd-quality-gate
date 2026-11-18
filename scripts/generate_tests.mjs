@@ -2,7 +2,7 @@
 
 /**
  * Programmatic LLM-Based Test Generator
- * Senior SDET Challenge - PayMongo
+ * Senior SDET Challenge - AI Automation
  * 
  * Features:
  * - Resilient Multi-Model Fallback Chain (Verified Gemini Models)

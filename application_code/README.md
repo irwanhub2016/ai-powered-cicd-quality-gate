@@ -123,7 +123,7 @@ lsof -ti:8080 | xargs kill -9
 **Problem**: `go: cannot find main module`
 ```bash
 # Initialize Go module
-go mod init github.com/paymongo/sdet-test
+go mod init github.com/ai-automation/sdet-test
 ```
 
 ### Frontend Issues

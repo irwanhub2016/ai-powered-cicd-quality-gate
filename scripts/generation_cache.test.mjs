@@ -10,7 +10,7 @@ import {
 } from './generation_cache.mjs';
 
 function createFixture(t) {
-  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'paymongo-test-cache-'));
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-automation-test-cache-'));
   t.after(() => fs.rmSync(rootDir, { recursive: true, force: true }));
 
   const manifestPath = path.join(rootDir, '.cache', 'manifest.json');

@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # Orchestration Script: Senior SDET AI-Driven Quality Gate
-# PayMongo Technical Assessment
+# AI Automation Technical Assessment
 # ==============================================================================
 
 set -e

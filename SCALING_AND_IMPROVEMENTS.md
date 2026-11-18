@@ -1,5 +1,5 @@
 # Notes: Scaling & Improvements Architecture Guide
-> **Senior SDET Technical Notes — PayMongo Automation Challenge**
+> **Senior SDET Technical Notes — AI Automation Challenge**
 > *Dokumen referensi persiapan interview teknis: analisis skalabilitas, arsitektur masa depan, dan mitigasi risiko.*
 
 ---
@@ -32,7 +32,7 @@ Cache ini menghindari panggilan LLM yang sia-sia; ia tidak membuktikan bahwa isi
 
 ### Masalah Saat Ini
 File `swagger.yaml` dimasukkan secara monolitik (satu file utuh) ke prompt generator, menghasilkan satu file `generated-api.spec.ts`.
-- **Dampak:** Di payment gateway riil (seperti PayMongo), file OpenAPI bisa mencapai puluhan ribu baris dengan ratusan endpoint. Mengirim satu file raksasa akan melampaui context window atau memicu fenomena LLM *"lost-in-the-middle"* (melewatkan endpoint tertentu).
+- **Dampak:** Di payment gateway skala riil, file OpenAPI bisa mencapai puluhan ribu baris dengan ratusan endpoint. Mengirim satu file raksasa akan melampaui context window atau memicu fenomena LLM *"lost-in-the-middle"* (melewatkan endpoint tertentu).
 
 ### Solusi Skalabilitas
 1. **OpenAPI Parser & Splitting:**
@@ -133,7 +133,7 @@ Interviewer sering menanyakan apakah aman men-generate test di dalam CI runner s
 ## 📊 Summary Cheatsheet untuk Jawaban Interview
 
 ```
-"Jika saya membawa arsitektur ini ke level enterprise di PayMongo:
+"Jika saya membawa arsitektur ini ke level enterprise di AI Automation:
  1. Cost & Speed   -> Content-hash caching & Git diff triggers (jangan panggil LLM jika spec tidak berubah).
  2. Scale           -> OpenAPI tag chunking & parallel generation untuk ratusan endpoint.
  3. Reliability     -> Semantic conformance checking (anti-halusinasi) & mutation testing.
