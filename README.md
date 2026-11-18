@@ -20,6 +20,9 @@
    - [7. Handling Flaky or Unstable Tests](#7-handling-flaky-or-unstable-tests)
    - [8. E2E Selector Generation & Stability](#8-e2e-selector-generation--stability)
    - [9. Preventing Flaky Frontend Tests](#9-preventing-flaky-frontend-tests)
+6. [Bonus Implementations](#-bonus-implementations)
+7. [Sample Test Execution (Local)](#-sample-test-execution-local)
+8. [CI Quality Gate Evidence](#-ci-quality-gate-evidence)
 
 ---
 
