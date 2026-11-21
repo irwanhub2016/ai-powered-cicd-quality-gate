@@ -201,6 +201,8 @@ func validateEmailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// Deliberately return 500 to exercise the API quality gate failure case.
+	w.WriteHeader(http.StatusInternalServerError)
 	json.NewEncoder(w).Encode(resp)
 }
 
