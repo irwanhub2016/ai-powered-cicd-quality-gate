@@ -166,7 +166,7 @@ export default function CheckoutPage() {
       const data = await res.json();
       
       if (res.ok) {
-        setMessage(`✅ ${data.message}`);
+        setMessage(`❌ Payment failed: ${data.message}`);
       } else {
         setMessage(`❌ Payment failed: ${data.error || 'Unknown error'}`);
       }
