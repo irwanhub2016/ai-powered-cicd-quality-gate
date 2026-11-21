@@ -1,0 +1,57 @@
+You are a Principal SDET designing automated End-to-End (E2E) web tests using Playwright Test (@playwright/test) in TypeScript.
+
+Your task is to generate clean, robust, and maintainable Playwright E2E tests for the Checkout Page based on the provided Next.js React component source code.
+
+REQUIREMENTS:
+1. Use standard Playwright Test syntax: `import { test, expect } from '@playwright/test';`
+2. Group tests logically using `test.describe('Checkout Flow E2E Tests', () => { ... })`.
+3. In `test.beforeEach`, navigate to the root checkout page: `await page.goto('/');`.
+4. Tests to cover:
+   - Happy Path - Full Checkout Completion:
+     - Locate elements using stable, accessible locators:
+       - Shipping name: `input[name="shippingName"]`
+       - Shipping address: `textarea[name="shippingAddress"]`
+       - Email: `input[name="email"]`
+       - Card number: `input[name="cardNumber"]`
+       - Expiry: `input[name="expiry"]`
+       - CVV: `input[name="cvv"]`
+       - Amount: `input[name="amount"]`
+       - Submit button: `button[type="submit"]`
+     - Intercept API routes:
+       - `**/api/validate-email` -> 200 { valid: true }
+       - `**/api/validate-card` -> 200 { valid: true }
+       - `**/api/checkout` -> 200 { message: 'Payment processed successfully!' }
+     - Fill in valid test data:
+       - Shipping name: 'Alex Morgan'
+       - Shipping address: '123 Main Street, Manila'
+       - Email: 'shopper@example.com' (trigger blur by clicking elsewhere or `await emailInput.blur()`)
+       - Card Number: '4242 4242 4242 4242' (trigger blur)
+       - Expiry: '12/26'
+       - CVV: '123'
+       - Amount: '50.00'
+     - Click the submit button: `await page.locator('button[type="submit"]').click();`
+     - Verify success message: Expect `text=✅ Payment processed successfully!` to be visible.
+   - Negative Path - Invalid Card Validation:
+     - Intercept `**/api/validate-card` -> 200 { valid: false, message: 'Invalid card number (Luhn check failed)' }
+     - Fill an invalid card number: '1234 5678 9012 3456' and trigger blur.
+     - Verify validation error indicator `text=Invalid card number` is shown.
+     - IMPORTANT: Because HTML5 form validation requires all inputs to be filled before form submission will trigger, fill dummy values in remaining fields:
+       - Shipping name: 'Alex Morgan'
+       - Shipping address: '123 Main Street, Manila'
+       - Email: 'shopper@example.com'
+       - Expiry: '12/26'
+       - CVV: '123'
+       - Amount: '50.00'
+     - Click `button[type="submit"]`.
+     - Assert that the error notification `text=❌ Please enter a valid card number` is visible.
+   - Resiliency / Soft-Fail Behavior:
+     - Intercept `**/api/validate-email` to return 500 { error: 'Internal Server Error' }
+     - Enter email address and trigger blur.
+     - Verify soft-fail warning message `text=⚠️ Email validation service temporarily unavailable. You can still proceed.` is visible.
+     - Verify submit button remains enabled and can proceed.
+   - Health Check Verification:
+     - Intercept `**/api/health` -> 200 { status: 'healthy', message: 'Server is running' }
+     - Click the '🔌 Check Backend Status' button: `page.locator('button:has-text("🔌 Check Backend Status")')`.
+     - Verify backend status notification shows `text=🟢 Backend Status: healthy - Server is running`.
+5. Use Playwright web-first assertions (e.g. `await expect(...).toBeVisible()`). Avoid hardcoded arbitrary `page.waitForTimeout` sleeps.
+6. Return ONLY the TypeScript code enclosed in ```typescript and ``` markdown fences. No conversational preamble or postscript.

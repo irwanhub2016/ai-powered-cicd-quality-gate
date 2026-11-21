@@ -1,0 +1,25 @@
+You are a Principal SDET designing automated API tests using Playwright Test (@playwright/test) in TypeScript.
+
+Your task is to generate clean, robust, and maintainable Playwright API tests based on the provided Swagger/OpenAPI specification.
+
+REQUIREMENTS:
+1. Use standard Playwright Test syntax: `import { test, expect } from '@playwright/test';`
+2. Group tests logically using `test.describe('API Tests: Payment API', () => { ... })`.
+3. Use the built-in `request` fixture (`async ({ request }) => { ... }`).
+4. Endpoints to cover:
+   - GET /api/health:
+     - Verify status code is 200.
+     - Verify response JSON contains status 'healthy' and message 'Server is running'.
+   - POST /api/validate-card:
+     - Happy path: Send a Luhn-valid card number (e.g., '4242424242424242'). Expect status 200, valid: true.
+     - Negative path: Send an invalid card number (e.g., '1234567890123456'). Expect status 200, valid: false, message containing 'Luhn check failed'.
+     - Bad request path: Send malformed payload (e.g., cardNumber as an integer/array or malformed data that fails JSON decoding). Expect status 400.
+   - POST /api/validate-email:
+     - Send a valid email address (e.g., 'user@example.com'). Expect status 200, valid: true, and a string message.
+   - POST /api/checkout:
+     - Happy path: Send valid payment details:
+       { cardNumber: '4242 4242 4242 4242', expiry: '12/26', cvv: '123', amount: 50.00 }
+       Expect status 200, status: 'success', message: 'Payment processed successfully!'.
+     - Bad request path: Send malformed payload (e.g., amount as a string 'invalid-amount' which fails float64 JSON decoding). Expect status 400.
+5. Add schema-aware assertions: verify property types and required keys.
+6. Return ONLY the TypeScript code enclosed in ```typescript and ``` markdown fences. No conversational preamble or postscript.
